@@ -8,7 +8,7 @@ pre-insalled package for management reason. Thus I use AUR via
 ``yay -S k3s-bin`` command. After installation, K3S can be started as
 standard ``sudo systemctl start k3s`` command.
 
-### peed up image downloading via mirror
+### Speed up image downloading via mirror
 
 Most components used by K3S are hosted on [docker.io](https://hub.docker.com). 
 Unfortunately, the access to Docker official registry can be slow due to

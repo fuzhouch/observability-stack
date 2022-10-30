@@ -1,0 +1,62 @@
+# https://tanka.dev/tutorial/refresher#writing-the-yaml
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus-svc
+  namespace: prometheus
+  labels:
+    name: prometheus-svr
+spec:
+  type: NodePort
+  selector:
+    name: prometheus-svr
+  ports:
+    - nodePort: 30002
+      port: 9090
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: prometheus-svr
+  name: prometheus-svr
+  namespace: prometheus
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: prometheus-svr
+  template:
+    metadata:
+      labels:
+        name: prometheus-svr
+    spec:
+      containers:
+        - image: docker.io/prom/prometheus:latest
+          name: prometheus-svr
+          args:
+            - "--storage.tsdb.retention.time=1h"
+            - "--config.file=/etc/prometheus/cfg/prometheus.yaml"
+            - "--storage.tsdb.path=/etc/prometheus/data/"
+          resources:
+            requests:
+              cpu: 200m
+              memory: 500Mi
+            limits:
+              cpu: 1
+              memory: 1Gi
+          volumeMounts:
+            - name: prometheus-config-vol
+              mountPath: /etc/prometheus/cfg
+            - name: prometheus-storage-vol
+              mountPath: /etc/prometheus/data
+      volumes:
+        - name: prometheus-config-vol
+          configMap:
+            defaultMode: 0644
+            name: prometheus-svr-conf
+        - name: prometheus-storage-vol
+          hostPath:
+            path: /home/fuzhouch/projects/learning/minikube/prometheus-svr/data
+            type: DirectoryOrCreate

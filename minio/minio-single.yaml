@@ -13,7 +13,7 @@ metadata:
 kind: Service
 apiVersion: v1
 metadata:
-  name: miniosvc
+  name: minio-svc
   namespace: minio
 spec:
   type: NodePort

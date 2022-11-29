@@ -1,0 +1,9 @@
+# Strictly speaking this is not needed for K3S. There's a local-path
+# storage class created by default on installation of K3S. But I put it
+# here anyway for complete setup.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: local-storage
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer

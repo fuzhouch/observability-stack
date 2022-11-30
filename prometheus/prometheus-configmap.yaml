@@ -3,10 +3,10 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: prometheus-svr-conf
+  name: prometheus-configmap
   namespace: prometheus
   labels:
-    name: prometheus-svr-conf
+    name: prometheus-configmap
 data:
   prometheus.rules: |-
     groups:

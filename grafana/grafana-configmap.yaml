@@ -1,0 +1,27 @@
+# Reference from:
+# https://github.com/kubeflow/community/blob/master/devstats/config/grafana/etc/grafana.ini.example
+# https://gkarthiks.github.io/quick-commands-cheat-sheet/grafana-ini.html
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-configmap
+  namespace: grafana
+  labels:
+    app: grafana
+data:
+  grafana.ini: |
+    [server]
+    protocol = http
+    http_port = 3000
+    [database]
+    type = postgres
+    host = postgresql.postgresql.svc.cluster.local
+    port = 5432
+    name = observability
+    user = admin
+    password = admin
+    ssl_mode = disable
+    [security]
+    admin_user = admin
+    admin_password = nimda

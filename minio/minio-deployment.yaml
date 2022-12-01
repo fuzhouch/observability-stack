@@ -1,0 +1,62 @@
+# minio-single defines a single-node minio service, deployable in
+# minikube, and expose it via a NodePort for access from host.
+# The storage used by minio service is hosted in local disk for study
+# purpose.
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: minio
+  namespace: minio
+spec:
+  type: NodePort
+  selector:
+    app: minio
+  ports:
+    - nodePort: 30001
+      port: 5000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: minio
+  namespace: minio
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9000"
+    prometheus.io/path: "/minio/v2/metrics/cluster"
+spec:
+  replicas: 1 ## Must set to 1 as there's no HA in test environment.
+  selector:
+    matchLabels:
+      app: minio
+  template:
+    metadata:
+      labels:
+        app: minio
+    spec:
+      containers:
+      - name: minio
+        image: quay.io/minio/minio:RELEASE.2022-11-26T22-43-32Z 
+        command:
+        - /bin/bash
+        - -c
+        args: 
+        - minio server /data --console-address :5000
+        ports:
+        - name: api
+          containerPort: 9000
+          protocol: "TCP"
+        - name: console
+          containerPort: 5000
+          protocol: "TCP"
+        envFrom:
+        - configMapRef:
+            name: minio-configmap
+        volumeMounts:
+        - mountPath: /data
+          name: minio-data
+      volumes:
+      - name: minio-data
+        persistentVolumeClaim:
+          claimName: minio-pvc

@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: minio-configmap
+  namespace: minio
+  labels:
+    app: minio
+data:
+  MINIO_ROOT_USER: admin
+  MINIO_ROOT_PASSWORD: zaq1@WSX
+  MINIO_PROMETHEUS_AUTH_TYPE: public

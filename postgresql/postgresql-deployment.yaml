@@ -18,7 +18,7 @@ metadata:
   name: postgresql
   namespace: postgresql
 spec:
-  replicas: 1 ## Must set to 1 as there's no no primary/secondary db.
+  replicas: 1 ## Must set to 1 as there's no primary/secondary db.
   selector:
     matchLabels:
       app: postgresql

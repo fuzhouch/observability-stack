@@ -13,8 +13,12 @@ spec:
   selector:
     app: minio
   ports:
-    - nodePort: 30001
+    - name: console
       port: 5000
+      nodePort: 30001
+    - name: api
+      port: 9000
+      nodePort: 30000
 ---
 apiVersion: apps/v1
 kind: Deployment

@@ -1,0 +1,409 @@
+# Reference:
+# https://github.com/grafana/helm-charts/blob/main/charts/loki-distributed/values.yaml
+# https://github.com/grafana/loki/blob/main/production/helm/loki/values.yaml
+# https://blog.min.io/how-to-grafana-loki-minio/
+# https://alexandre-vazquez.com/how-to-configure-grafana-loki-to-use-minio/
+#
+# Known issues
+# This setting sets reader/writer replica to 1. It must come along with
+# ingester.lifecycler.replication_factor to 1 (default it 3). If not, we
+# see "too many unhealthy instances in the ring" errors. Credit goes to
+# https://juejin.cn/post/7150469420605767717
+# Note that in helm it actually maps to commonConfig.replication_factor.
+---
+# Section global: No need to configure, unless we host our own
+# chart/docker images in a private repository, or we have some special
+# configuration for Kubernetes DNS rule.
+
+# Section kubectlImage: No need to override.
+
+loki:
+  # Configures the readiness probe for all of the Loki pods
+  readinessProbe:
+    httpGet:
+      path: /ready
+      port: http-metrics
+    initialDelaySeconds: 30
+    timeoutSeconds: 1
+  image:
+    registry: docker.io
+    repository: grafana/loki
+    tag: main-2ff6f13 # Use fixed value
+  # security settings are all default, and they should be kept: Don't
+  # use root user/group!
+  # -- The SecurityContext for Loki pods
+  podSecurityContext:
+    fsGroup: 10001
+    runAsGroup: 10001
+    runAsNonRoot: true
+    runAsUser: 10001
+  # -- The SecurityContext for Loki containers
+  containerSecurityContext:
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+        - ALL
+    allowPrivilegeEscalation: false
+  # Should authentication be enabled
+  auth_enabled: false # For demo purpose, no.
+
+  # -- Check https://grafana.com/docs/loki/latest/configuration/#server for more info on the server configuration.
+  server:
+    http_listen_port: 3100
+    grpc_listen_port: 9095
+
+  # -- Limits config
+  limits_config:
+    enforce_metric_name: false
+    reject_old_samples: true
+    reject_old_samples_max_age: 168h
+    max_cache_freshness_per_query: 10m
+    split_queries_by_interval: 15m
+
+  # -- Check https://grafana.com/docs/loki/latest/configuration/#common_config
+  # for more info on how to provide a common configuration
+  commonConfig:
+    replication_factor: 1
+
+  # -- Storage config. Providing this will automatically populate all necessary storage configs in the templated config.
+  storage:
+    bucketNames:
+      chunks: logsvol-chunks
+      ruler: logsvol-ruler
+      admin: logsvol-admin
+    type: s3
+    s3:
+      s3: null
+      endpoint: http://minio.minio.svc.cluster.local:9000
+      region: null
+      secretAccessKey: r4oLHOkXvw5MpL5TBltJIspT8Z7Pyrwl 
+      accessKeyId: LAiFfbGPznlcrPu3 
+      s3ForcePathStyle: true # Must be true to work with MinIO
+      insecure: true
+
+  # -- Configure memcached as an external cache for chunk and results cache. Disabled by default
+  # must enable and specify a host for each cache you would like to use.
+  memcached:
+    chunk_cache:
+      enabled: false
+      host: ""
+      service: "memcached-client"
+      batch_size: 256
+      parallelism: 10
+    results_cache:
+      enabled: false
+      host: ""
+      service: "memcached-client"
+      timeout: "500ms"
+      default_validity: "12h"
+
+  # -- Check https://grafana.com/docs/loki/latest/configuration/#schema_config for more info on how to configure schemas
+  schemaConfig: {}
+
+  # -- Check https://grafana.com/docs/loki/latest/configuration/#ruler for more info on configuring ruler
+  rulerConfig: {}
+
+  # -- Structured loki configuration, takes precedence over `loki.config`, `loki.schemaConfig`, `loki.storageConfig`
+  structuredConfig: {}
+
+  # -- Additional query scheduler config
+  query_scheduler: {}
+
+  # -- Additional storage config
+  storage_config:
+    hedging:
+      at: "250ms"
+      max_per_second: 20
+      up_to: 3
+
+  # --  Optional compactor configuration
+  compactor: {}
+
+  # --  Optional analytics configuration
+  analytics: {}
+
+  # --  Optional querier configuration
+  querier: {}
+
+enterprise:
+  # Enable enterprise features, license must be provided
+  enabled: false
+  # To set the license contents, use the flag `--set-file 'license.contents=./license.jwt'`
+  license:
+    contents: "NOTAVALIDLICENSE"
+
+# -- Options that may be necessary when performing a migration from another helm chart
+migrate:
+  # -- When migrating from a distributed chart like loki-distributed or enterprise-logs
+  fromDistributed:
+    # -- Set to true if migrating from a distributed helm chart
+    enabled: false
+    # -- If migrating from a distributed service, provide the distributed deployment's
+    # memberlist service DNS so the new deployment can join it's ring.
+    memberlistService: ""
+
+serviceAccount:
+  # -- Specifies whether a ServiceAccount should be created
+  create: true
+  # -- The name of the ServiceAccount to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: null
+  # -- Image pull secrets for the service account
+  imagePullSecrets: []
+  # -- Annotations for the service account
+  annotations: {}
+  # -- Labels for the service account
+  labels: {}
+  # -- Set this toggle to false to opt out of automounting API credentials for the service account
+  automountServiceAccountToken: true
+
+# RBAC configuration
+rbac:
+  # -- If pspEnabled true, a PodSecurityPolicy is created for K8s that use psp.
+  pspEnabled: false
+  # -- For OpenShift set pspEnabled to 'false' and sccEnabled to 'true' to use the SecurityContextConstraints.
+  sccEnabled: false
+
+# -- Section for configuring optional Helm test
+test:
+  enabled: true
+  # -- Address of the prometheus server to query for the test
+  prometheusAddress: "http://prometheus.prometheus.svc.cluster.local:9090"
+  # -- Number of times to retry the test before failing
+  timeout: 1m
+  # -- Additional labels for the test pods
+  labels: {}
+  # -- Additional annotations for test pods
+  annotations: {}
+  # -- Image to use for loki canary
+  image:
+    # -- The Docker registry
+    registry: docker.io
+    # -- Docker image repository
+    repository: grafana/loki-helm-test
+    # -- Overrides the image tag whose default is the chart's appVersion
+    tag: null
+    # -- Docker image pull policy
+    pullPolicy: IfNotPresent
+
+# Monitoring section determines which monitoring features to enable
+monitoring:
+  # Dashboards for monitoring Loki
+  dashboards:
+    # -- If enabled, create configmap with dashboards for monitoring Loki
+    enabled: true
+    # -- Alternative namespace to create dashboards ConfigMap in
+    namespace: loki
+    # -- Additional annotations for the dashboards ConfigMap
+    annotations: {}
+    # -- Additional labels for the dashboards ConfigMap
+    labels: {}
+
+  # Recording rules for monitoring Loki, required for some dashboards
+  rules:
+    # -- If enabled, create PrometheusRule resource with Loki recording rules
+    enabled: true
+    # -- Include alerting rules
+    alerting: true
+    # -- Alternative namespace to create recording rules PrometheusRule resource in
+    namespace: loki
+    # -- Additional annotations for the rules PrometheusRule resource
+    annotations: {}
+    # -- Additional labels for the rules PrometheusRule resource
+    labels: {}
+    # -- Additional groups to add to the rules file
+    additionalGroups: []
+    # - name: additional-loki-rules
+    #   rules:
+    #     - record: job:loki_request_duration_seconds_bucket:sum_rate
+    #       expr: sum(rate(loki_request_duration_seconds_bucket[1m])) by (le, job)
+    #     - record: job_route:loki_request_duration_seconds_bucket:sum_rate
+    #       expr: sum(rate(loki_request_duration_seconds_bucket[1m])) by (le, job, route)
+    #     - record: node_namespace_pod_container:container_cpu_usage_seconds_total:sum_rate
+    #       expr: sum(rate(container_cpu_usage_seconds_total[1m])) by (node, namespace, pod, container)
+
+  # ServiceMonitor configuration
+  serviceMonitor:
+    # -- If enabled, ServiceMonitor resources for Prometheus Operator are created
+    enabled: true
+    # -- Alternative namespace for ServiceMonitor resources
+    namespace: loki
+    # -- Namespace selector for ServiceMonitor resources
+    namespaceSelector: {}
+    # -- ServiceMonitor annotations
+    annotations: {}
+    # -- Additional ServiceMonitor labels
+    labels: {}
+    # -- ServiceMonitor scrape interval
+    interval: null
+    # -- ServiceMonitor scrape timeout in Go duration format (e.g. 15s)
+    scrapeTimeout: null
+    # -- ServiceMonitor relabel configs to apply to samples before scraping
+    # https://github.com/prometheus-operator/prometheus-operator/blob/master/Documentation/api.md#relabelconfig
+    relabelings: []
+    # -- ServiceMonitor will use http by default, but you can pick https as well
+    scheme: http
+    # -- ServiceMonitor will use these tlsConfig settings to make the health check requests
+    tlsConfig: null
+    # -- If defined, will create a MetricsInstance for the Grafana Agent Operator.
+    metricsInstance:
+      # -- If enabled, MetricsInstance resources for Grafana Agent Operator are created
+      enabled: true
+      # -- MetricsInstance annotations
+      annotations: {}
+      # -- Additional MetricsInstance labels
+      labels: {}
+      # -- If defined a MetricsInstance will be created to remote write metrics.
+      remoteWrite: null
+
+  # Self monitoring determines whether Loki should scrape it's own logs.
+  # This feature currently relies on the Grafana Agent Operator being installed,
+  # which is installed by default using the grafana-agent-operator sub-chart.
+  # It will create custom resources for GrafanaAgent, LogsInstance, and PodLogs to configure
+  # scrape configs to scrape it's own logs with the labels expected by the included dashboards.
+  selfMonitoring:
+    enabled: true
+
+    # -- Tenant to use for self monitoring
+    tenant: "self-monitoring"
+
+    # Grafana Agent configuration
+    grafanaAgent:
+      # -- Controls whether to install the Grafana Agent Operator and its CRDs.
+      # Note that helm will not install CRDs if this flag is enabled during an upgrade.
+      # In that case install the CRDs manually from https://github.com/grafana/agent/tree/main/production/operator/crds
+      installOperator: true
+      # -- Alternative namespace for Grafana Agent resources
+      namespace: null
+      # -- Grafana Agent annotations
+      annotations: {}
+      # -- Additional Grafana Agent labels
+      labels: {}
+      # -- Enable the config read api on port 8080 of the agent
+      enableConfigReadAPI: false
+
+    # PodLogs configuration
+    podLogs:
+      # -- Alternative namespace for PodLogs resources
+      namespace: loki
+      # -- PodLogs annotations
+      annotations: {}
+      # -- Additional PodLogs labels
+      labels: {}
+      # -- PodLogs relabel configs to apply to samples before scraping
+      # https://github.com/prometheus-operator/prometheus-operator/blob/master/Documentation/api.md#relabelconfig
+      relabelings: []
+
+    # LogsInstance configuration
+    logsInstance:
+      # -- Alternative namespace for LogsInstance resources
+      namespace: loki
+      # -- LogsInstance annotations
+      annotations: {}
+      # -- Additional LogsInstance labels
+      labels: {}
+      # -- Additional clients for remote write
+      clients: null
+
+    # The Loki canary pushes logs to and queries from this loki installation to test
+    # that it's working correctly
+    lokiCanary:
+      enabled: true
+      # -- Additional annotations for the `loki-canary` Daemonset
+      annotations: {}
+      # -- Additional CLI arguments for the `loki-canary' command
+      extraArgs: []
+      # -- Environment variables to add to the canary pods
+      extraEnv: []
+      # -- Environment variables from secrets or configmaps to add to the canary pods
+      extraEnvFrom: []
+      # -- Resource requests and limits for the canary
+      resources: {}
+      # -- Node selector for canary pods
+      nodeSelector: {}
+      # -- Tolerations for canary pods
+      tolerations: []
+
+# Configuration for the write
+write:
+  replicas: 1
+  persistence:
+    # -- Size of persistent disk
+    size: 1Gi
+    # -- Storage class to be used.
+    # If defined, storageClassName: <storageClass>.
+    # If set to "-", storageClassName: "", which disables dynamic provisioning.
+    # If empty or set to null, no storageClassName spec is
+    # set, choosing the default provisioner (gp2 on AWS, standard on GKE, AWS, and OpenStack).
+    storageClass: null
+    # -- Selector for persistent disk
+    selector: null
+
+# Configuration for the read node(s)
+read:
+  replicas: 1
+  autoscaling:
+    # -- Enable autoscaling for the read, this is only used if `queryIndex.enabled: true`
+    enabled: false
+  persistence:
+    # -- Size of persistent disk
+    size: 1Gi
+    # -- Storage class to be used.
+    # If defined, storageClassName: <storageClass>.
+    # If set to "-", storageClassName: "", which disables dynamic provisioning.
+    # If empty or set to null, no storageClassName spec is
+    # set, choosing the default provisioner (gp2 on AWS, standard on GKE, AWS, and OpenStack).
+    storageClass: null
+    # -- Selector for persistent disk
+    selector: null
+
+# Configuration for the single binary node(s)
+singleBinary:
+  # -- Number of replicas for the single binary
+  replicas: 1
+  autoscaling:
+    enabled: false
+  persistence:
+    # -- Size of persistent disk
+    size: 10Gi
+    # -- Storage class to be used.
+    # If defined, storageClassName: <storageClass>.
+    # If set to "-", storageClassName: "", which disables dynamic provisioning.
+    # If empty or set to null, no storageClassName spec is
+    # set, choosing the default provisioner (gp2 on AWS, standard on GKE, AWS, and OpenStack).
+    storageClass: null
+    # -- Selector for persistent disk
+    selector: null
+
+# Use either this ingress or the gateway, but not both at once.
+# If you enable this, make sure to disable the gateway.
+# You'll need to supply authn configuration for your ingress controller.
+ingress:
+  enabled: false
+
+# Configuration for the gateway
+gateway:
+  enabled: true
+  replicas: 1
+  # -- Enable logging of 2xx and 3xx HTTP requests
+  verboseLogging: true
+  autoscaling:
+    enabled: false
+
+networkPolicy:
+  # -- Specifies whether Network Policies should be created
+  enabled: false
+
+tracing:
+  jaegerAgentHost: ""
+
+# -------------------------------------
+# Configuration for `minio` child chart
+# -------------------------------------
+minio:
+  enabled: false
+  replicas: 1
+  # Minio requires 2 to 16 drives for erasure code (drivesPerNode * replicas)
+  # https://docs.min.io/docs/minio-erasure-code-quickstart-guide
+  # Since we only have 1 replica, that means 2 drives must be used.
+  drivesPerNode: 2

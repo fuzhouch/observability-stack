@@ -25,10 +25,6 @@ kind: Deployment
 metadata:
   name: minio
   namespace: minio
-  annotations:
-    prometheus.io/scrape: "true"
-    prometheus.io/port: "9000"
-    prometheus.io/path: "/minio/v2/metrics/cluster"
 spec:
   replicas: 1 ## Must set to 1 as there's no HA in test environment.
   selector:
@@ -38,6 +34,10 @@ spec:
     metadata:
       labels:
         app: minio
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9000"
+        prometheus.io/path: "/minio/v2/metrics/cluster"
     spec:
       containers:
       - name: minio

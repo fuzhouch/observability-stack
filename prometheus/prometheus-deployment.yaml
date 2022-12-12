@@ -47,16 +47,15 @@ spec:
               cpu: 1
               memory: 1Gi
           volumeMounts:
-            - name: config-vol
+            - name: prometheus-config
               mountPath: /etc/prometheus/cfg
-            - name: storage-vol
+            - name: prometheus-data
               mountPath: /etc/prometheus/data
       volumes:
-        - name: config-vol
+        - name: prometheus-config
           configMap:
             defaultMode: 0644
             name: prometheus-configmap
-        - name: storage-vol
-          hostPath:
-            path: /home/fuzhouch/projects/learning/minikube/prometheus/data
-            type: DirectoryOrCreate
+        - name: prometheus-data
+          persistentVolumeClaim:
+            claimName: prometheus-pvc

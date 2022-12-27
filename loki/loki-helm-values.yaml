@@ -193,7 +193,7 @@ monitoring:
     # -- If enabled, create configmap with dashboards for monitoring Loki
     enabled: true
     # -- Alternative namespace to create dashboards ConfigMap in
-    namespace: loki
+    namespace: grafana
     # -- Additional annotations for the dashboards ConfigMap
     annotations: {}
     # -- Additional labels for the dashboards ConfigMap
@@ -206,7 +206,7 @@ monitoring:
     # -- Include alerting rules
     alerting: true
     # -- Alternative namespace to create recording rules PrometheusRule resource in
-    namespace: loki
+    namespace: grafana
     # -- Additional annotations for the rules PrometheusRule resource
     annotations: {}
     # -- Additional labels for the rules PrometheusRule resource
@@ -225,7 +225,7 @@ monitoring:
   # ServiceMonitor configuration
   serviceMonitor:
     # -- If enabled, ServiceMonitor resources for Prometheus Operator are created
-    enabled: true
+    enabled: false
     # -- Alternative namespace for ServiceMonitor resources
     namespace: loki
     # -- Namespace selector for ServiceMonitor resources
@@ -272,9 +272,9 @@ monitoring:
       # -- Controls whether to install the Grafana Agent Operator and its CRDs.
       # Note that helm will not install CRDs if this flag is enabled during an upgrade.
       # In that case install the CRDs manually from https://github.com/grafana/agent/tree/main/production/operator/crds
-      installOperator: true
+      installOperator: false
       # -- Alternative namespace for Grafana Agent resources
-      namespace: null
+      namespace: loki
       # -- Grafana Agent annotations
       annotations: {}
       # -- Additional Grafana Agent labels

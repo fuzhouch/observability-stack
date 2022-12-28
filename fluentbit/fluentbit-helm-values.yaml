@@ -144,12 +144,51 @@ config:
   ## https://docs.fluentbit.io/manual/pipeline/inputs
   ## In our K3S installation, we intentionally parse different log
   ## formats by matching different log types.
+  ## 
+  ## Known issue: A long tag name like grafana or prometheus can cause
+  ## losing tag. I haven't spotted the root cause. Need further
+  ## diagnose. For now, just keep tag on <= 4 characters.
   inputs: |
     [INPUT]
         Name tail
         Path /var/log/containers/*kube-system*.log
         multiline.parser docker, cri
         Tag kube.*
+        Mem_Buf_Limit 5MB
+        Skip_Long_Lines On
+    [INPUT]
+        Name tail
+        Path /var/log/containers/prometheus*.log
+        multiline.parser docker, cri
+        Tag prom.*
+        Mem_Buf_Limit 5MB
+        Skip_Long_Lines On
+    [INPUT]
+        Name tail
+        Path /var/log/containers/loki*.log
+        multiline.parser docker, cri
+        Tag loki.*
+        Mem_Buf_Limit 5MB
+        Skip_Long_Lines On
+    [INPUT]
+        Name tail
+        Path /var/log/containers/minio*.log
+        multiline.parser docker, cri
+        Tag mini.*
+        Mem_Buf_Limit 5MB
+        Skip_Long_Lines On
+    [INPUT]
+        Name tail
+        Path /var/log/containers/grafana*.log
+        multiline.parser docker, cri
+        Tag graf.*
+        Mem_Buf_Limit 5MB
+        Skip_Long_Lines On
+    [INPUT]
+        Name tail
+        Path /var/log/containers/fluent*.log
+        multiline.parser docker, cri
+        Tag flue.*
         Mem_Buf_Limit 5MB
         Skip_Long_Lines On
 
@@ -159,11 +198,20 @@ config:
   ##
   ## We use two filters - one to get K8S info (added as 2nd level JSON),
   ## then lift to top level so it can be indexed when writing to Loki
-  ## by Line_Format. 
+  ## by Line_Format.
+  ##
+  ## NOTE: kubernetes filter requires incoming tags longer than
+  ## Kube_Tag_Prefix (default value: kube.var.log.containers.), or it
+  ## skips processing. So make sure we always use .* suffix in tag to
+  ## form an acceptable tag.
+  ##
+  ## NOTE: Reserve_Data is required or Parser filter removes all
+  ## kubernetes fields. To me it's a bad design in fluent-bit, yet
+  ## somehow please understand.
   filters: |
     [FILTER]
         Name kubernetes
-        Match kube.*
+        Match *
         Merge_Log Off
         Keep_Log Off
         K8S-Logging.Parser On
@@ -171,15 +219,29 @@ config:
         Labels On
         Annotations On
     [FILTER]
-        Name  nest
-        Match kube.*
+        Name nest
+        Match *
         Operation lift
         Nested_Under kubernetes
     [FILTER]
-        Name  nest
-        Match kube.*
+        Name nest
+        Match *
         Operation lift
         Nested_Under labels
+    [Filter]
+        Name parser
+        Match prom.*
+        Parser logfmt
+        Key_Name log
+        Preserve_Key false
+        Reserve_Data true
+    [Filter]
+        Name parser
+        Match graf.*
+        Parser logfmt
+        Key_Name log
+        Preserve_Key false
+        Reserve_Data true
 
   ## https://docs.fluentbit.io/manual/pipeline/outputs/loki 
   ## auto_kubernetes_labels adds "k8s_app" and "pod_template_hash" tags.
@@ -199,7 +261,52 @@ config:
         Port 80
         Line_Format json
         Retry_Limit False
-        Labels job=fluentbit
+        Labels job=fluentbit,svc=kube
+        Auto_Kubernetes_Labels On
+    [OUTPUT]
+        Name loki
+        Match prom.*
+        Host loki-gateway.loki.svc.cluster.local
+        Port 80
+        Line_Format json
+        Retry_Limit False
+        Labels job=fluentbit,svc=prometheus
+        Auto_Kubernetes_Labels On
+    [OUTPUT]
+        Name loki
+        Match loki.*
+        Host loki-gateway.loki.svc.cluster.local
+        Port 80
+        Line_Format json
+        Retry_Limit False
+        Labels job=fluentbit,svc=loki
+        Auto_Kubernetes_Labels On
+    [OUTPUT]
+        Name loki
+        Match mini.*
+        Host loki-gateway.loki.svc.cluster.local
+        Port 80
+        Line_Format json
+        Retry_Limit False
+        Labels job=fluentbit,svc=minio
+        Auto_Kubernetes_Labels On
+    [OUTPUT]
+        Name loki
+        Match graf.*
+        Host loki-gateway.loki.svc.cluster.local
+        Port 80
+        Line_Format json
+        Retry_Limit False
+        Labels job=fluentbit,svc=grafana
+        Auto_Kubernetes_Labels On
+    [OUTPUT]
+        Name loki
+        Match flue.*
+        Host loki-gateway.loki.svc.cluster.local
+        Port 80
+        Line_Format json
+        Retry_Limit False
+        Labels job=fluentbit,svc=fluentbit
         Auto_Kubernetes_Labels On
 
   ## https://docs.fluentbit.io/manual/administration/configuring-fluent-bit/classic-mode/upstream-servers
@@ -215,6 +322,9 @@ config:
         Time_Keep Off
         Time_Key time
         Time_Format %Y-%m-%dT%H:%M:%S.%L
+    [PARSER]
+        Name logfmt
+        Format logfmt
 
   # This allows adding more files with arbitary filenames to
   # /fluent-bit/etc by providing key/value pairs.

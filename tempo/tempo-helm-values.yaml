@@ -1,0 +1,173 @@
+# Based on configuration from official documentation:
+# Example: https://github.com/grafana/tempo/blob/main/example/helm/microservices-tempo-values.yaml
+# Reference: https://github.com/grafana/helm-charts/tree/main/charts/tempo-distributed
+#
+# TODO The microservice-tempo-values.yaml files appears too simple to be
+# used. It just hard-coded a full tempo.yaml with "config: |". This does
+# not make sense to me.
+traces:
+  jaeger:
+    thriftHttp:
+      enabled: true
+    grpc:
+      enabled: true
+
+# Advanced settings: Generate configuration itself. If you are in a
+# migration scenario with existing configuration already existed, set it
+# to true.
+useExternalConfig: false
+
+# Let's stick to a stable version. For folks who want to try new
+# features, go main-* version
+tempo:
+  image:
+    repository: grafana/tempo
+    tag: 1.5.0
+    pullPolicy: IfNotPresent
+
+serviceAccount:
+  create: true
+
+# Assume no role-based access for internal use.
+multitenancyEnabled: false
+rbac:
+  create: false
+  pspEnabled: false
+
+# Replica always set to 1
+ingester:
+  replicas: 1
+  autoscaling:
+    enabled: false
+  config:
+    # Similar to Loki. Should match ingester.replicas
+    replication_factor: 1
+
+# Optional, but still enabled for observability.
+metricsGenerator:
+  enabled: true
+  replicas: 1
+
+distributor:
+  replicas: 1
+  autoscaling:
+    enabled: false
+
+# TODO Compactor does not have autoscaling, why?
+# Set block_retention to 1h for less storage pressure. 48h by default.
+compactor:
+  replicas: 1
+  config:
+    block_retention: 1h
+
+querier:
+  replicas: 1
+  autoscaling:
+    enabled: false
+
+queryFrontend:
+  # This is default settings. Required for grafana <7.5. One more
+  # restriction is it doesn't work for ARM arch.
+  query:
+    enabled: false
+  replicas: 1
+  autoscaling:
+    enabled: false
+
+# This is default value. TODO Why is it is set to false as default value.
+# According to https://grafana.com/docs/tempo/latest/configuration/#search
+# it must be set to true
+search:
+  enabled: true
+
+# I enabled only OpenTelemetry(otlp) and Jaeger. Note that Jaeger gRPC
+# is for future use if we want to monitor performance of Tempo itself
+# with tempo-vulture.
+traces:
+  jaeger:
+    grpc:
+      enabled: true
+      receiverConfig: {}
+    thriftBinary:
+      enabled: false
+      receiverConfig: {}
+    thriftCompact:
+      enabled: false
+      receiverConfig: {}
+    thriftHttp:
+      enabled: false
+      receiverConfig: {}
+  zipkin:
+    enabled: false
+    receiverConfig: {}
+  otlp:
+    http:
+      enabled: true
+      receiverConfig: {}
+    grpc:
+      enabled: true
+      receiverConfig: {}
+  opencensus:
+    enabled: false
+    receiverConfig: {}
+  kafka: {}
+
+# Let's use json format to let Loki live easier.
+server:
+  logInfo: info
+  logFormat: json
+
+# NOTE memcached is optional, but documentation is not very clear that
+# how to set host + service when memcached.enabled = false. Better set
+# it to true anyway.
+memcached:
+  enabled: true
+
+# Since we enabled memcached, we'd better enable exporter as well for
+# observability reasons.
+memcachedExporter:
+  enabled: true
+
+# We should enable it in true production cluster, esp. grafanaAgent.
+metaMonitoring:
+  serviceMonitor:
+    enabled: false
+  grafanaAgent:
+    enabled: false
+
+prometheusRule:
+  enabled: false
+
+gateway:
+  enabled: true
+  replicas: 1
+  autoscaling:
+    enabled: false
+  # Enabled by default for 2xx and 3xx HTTP requests
+  verboseLogging: true
+
+# Unlike official example, I don't directly add "config: |"
+# settings. This is too awekard and may cause additional problems.
+
+# NOTE minio.enabled is set to false to indicate Tempo deployment does
+# not create its own minio instance.
+# TODO A strange settings is impacted when minio.enabled = true,
+# named admin_client in tempo.yaml. Not sure why it's needed, it appears
+# to be an enterprise feature.
+minio:
+  enabled: false
+
+storage:
+  trace:
+    backend: s3
+    s3:
+      bucket: tempo
+      endpoint: minio.minio.svc.cluster.local:9000
+      access_key: hIkmFpEkOIslG3Nl
+      secret_key: RKBj0qlfUgCCz5wtXH1j3dN9d0oNMnqu 
+      insecure: true
+    blocklist_poll: 5m
+    wal:
+      path: /var/tempo/wal
+
+# We skip enterprise and enterpriseGateway configurations.
